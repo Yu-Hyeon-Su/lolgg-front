@@ -270,6 +270,28 @@ p {
   justify-content: flex-end;
 }
 
+.profile-actions {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  justify-content: flex-end;
+}
+
+.refresh-button {
+  min-width: 92px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  color: #eff6ff;
+  cursor: pointer;
+  font-size: 0.84rem;
+  font-weight: 800;
+  background: #2563eb;
+}
+
+.refresh-button:hover {
+  background: #1d4ed8;
+}
+
 .profile-meta span {
   padding: 8px 10px;
   border-radius: 999px;
@@ -299,6 +321,95 @@ p {
 .panel-head h2 {
   margin-top: 6px;
   font-size: 1.25rem;
+}
+
+.champion-stats-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.champion-stats-panel .panel-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+}
+
+.season-filter {
+  padding: 8px 10px;
+  border-radius: 999px;
+  color: #cbd5e1;
+  font-size: 0.82rem;
+  font-weight: 800;
+  background: #111827;
+}
+
+.champion-stats-table {
+  display: grid;
+  overflow-x: auto;
+}
+
+.champion-stats-row {
+  display: grid;
+  grid-template-columns: minmax(128px, 1.5fr) 62px 52px 74px 66px 42px 42px 54px 78px;
+  gap: 8px;
+  align-items: center;
+  min-width: 790px;
+  padding: 12px 10px;
+  border-top: 1px solid rgba(148, 163, 184, 0.12);
+  color: #cbd5e1;
+  font-size: 0.88rem;
+}
+
+.champion-stats-row.stats-header {
+  border-top: 0;
+  color: #64748b;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.champion-cell {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  color: #f8fafc;
+}
+
+.champion-avatar.compact {
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  font-size: 0.86rem;
+}
+
+.champion-stats-row small {
+  display: block;
+  color: #94a3b8;
+  font-size: 0.72rem;
+}
+
+.positive-stat {
+  color: #93c5fd;
+}
+
+.negative-stat {
+  color: #fca5a5;
+}
+
+.champion-stats-toggle {
+  width: 100%;
+  padding: 12px;
+  border-radius: 14px;
+  color: #93c5fd;
+  cursor: pointer;
+  font-weight: 800;
+  background: #111827;
+}
+
+.champion-stats-toggle:hover {
+  color: #eff6ff;
+  background: #1f2937;
 }
 
 .match-list {
@@ -824,6 +935,10 @@ p {
     justify-content: flex-start;
   }
 
+  .profile-actions {
+    justify-content: flex-start;
+  }
+
   .inline-search-form,
   .inline-search-controls,
   .search-controls {
@@ -832,6 +947,11 @@ p {
 
   .summary-grid {
     grid-template-columns: 1fr;
+  }
+
+  .champion-stats-panel .panel-head {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .match-card {

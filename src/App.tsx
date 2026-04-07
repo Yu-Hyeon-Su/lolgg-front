@@ -47,6 +47,18 @@ type Match = {
   }
 }
 
+type ChampionStat = {
+  champion: string
+  games: number
+  wins: number
+  losses: number
+  kills: number
+  deaths: number
+  assists: number
+  cs: number
+  csPerMinute: number
+}
+
 const recentMatches: Match[] = [
   {
     id: 'match-001',
@@ -236,6 +248,18 @@ const recentMatches: Match[] = [
 ]
 
 const servers = ['KR', 'NA', 'EUW', 'EUNE', 'JP', 'OCE'] as const
+const extraChampionStats: ChampionStat[] = [
+  { champion: '크산테', games: 18, wins: 11, losses: 7, kills: 72, deaths: 61, assists: 124, cs: 3492, csPerMinute: 132.4 },
+  { champion: '암베사', games: 14, wins: 8, losses: 6, kills: 83, deaths: 57, assists: 91, cs: 2716, csPerMinute: 112 },
+  { champion: '그웬', games: 12, wins: 7, losses: 5, kills: 69, deaths: 44, assists: 58, cs: 2498, csPerMinute: 103.7 },
+  { champion: '요릭', games: 10, wins: 4, losses: 6, kills: 42, deaths: 46, assists: 37, cs: 2410, csPerMinute: 88.8 },
+  { champion: '럼블', games: 9, wins: 5, losses: 4, kills: 51, deaths: 43, assists: 73, cs: 1786, csPerMinute: 71.1 },
+  { champion: '제이스', games: 8, wins: 3, losses: 5, kills: 46, deaths: 39, assists: 42, cs: 1688, csPerMinute: 67.2 },
+  { champion: '나르', games: 7, wins: 4, losses: 3, kills: 31, deaths: 28, assists: 55, cs: 1428, csPerMinute: 55.8 },
+  { champion: '레넥톤', games: 6, wins: 2, losses: 4, kills: 27, deaths: 32, assists: 29, cs: 1194, csPerMinute: 45.9 },
+  { champion: '잭스', games: 5, wins: 3, losses: 2, kills: 34, deaths: 25, assists: 31, cs: 1017, csPerMinute: 39.9 },
+  { champion: '카밀', games: 4, wins: 1, losses: 3, kills: 19, deaths: 24, assists: 21, cs: 782, csPerMinute: 30.5 },
+]
 const graphObjectiveRows: { key: keyof ObjectiveStats; label: string; format?: (value: number) => string }[] = [
   { key: 'totalKills', label: 'Total Kill' },
   { key: 'gold', label: 'Gold', format: (value) => `${(value / 1000).toFixed(1)}k` },
@@ -262,6 +286,44 @@ const getParticipantKdaRatio = (participant: Participant) =>
   `${((participant.kills + participant.assists) / Math.max(participant.deaths, 1)).toFixed(2)}:1`
 const getParticipantKillParticipation = (participant: Participant, teamKills: number) =>
   `${Math.round(((participant.kills + participant.assists) / Math.max(teamKills, 1)) * 100)}%`
+const getChampionStats = (matches: Match[]) =>
+  Object.values(
+    matches.reduce<Record<string, ChampionStat>>((stats, match) => {
+      stats[match.champion] ??= {
+        champion: match.champion,
+        games: 0,
+        wins: 0,
+        losses: 0,
+        kills: 0,
+        deaths: 0,
+        assists: 0,
+        cs: 0,
+        csPerMinute: 0,
+      }
+
+      const stat = stats[match.champion]
+      stat.games += 1
+      stat.wins += match.result === '승리' ? 1 : 0
+      stat.losses += match.result === '패배' ? 1 : 0
+      stat.kills += match.kills
+      stat.deaths += match.deaths
+      stat.assists += match.assists
+      stat.cs += match.cs
+      stat.csPerMinute += match.csPerMinute
+
+      return stats
+    }, {}),
+  ).sort((left, right) => right.games - left.games || right.wins - left.wins)
+const getChampionWinRate = (stat: ChampionStat) => `${Math.round((stat.wins / Math.max(stat.games, 1)) * 100)}%`
+const getChampionKda = (stat: ChampionStat) => `${stat.kills} / ${stat.deaths} / ${stat.assists}`
+const getChampionKdaRatio = (stat: ChampionStat) =>
+  `${((stat.kills + stat.assists) / Math.max(stat.deaths, 1)).toFixed(2)}:1`
+const getChampionAverageCs = (stat: ChampionStat) => Math.round(stat.cs / Math.max(stat.games, 1))
+const getChampionAverageCsPerMinute = (stat: ChampionStat) =>
+  (stat.csPerMinute / Math.max(stat.games, 1)).toFixed(1)
+const mergeChampionStats = (stats: ChampionStat[], extraStats: ChampionStat[]) =>
+  [...stats, ...extraStats].sort((left, right) => right.games - left.games || right.wins - left.wins)
+const championStatsPreviewCount = 5
 const getItemSlots = (items: string[]) => [...items, ...Array(Math.max(0, 6 - items.length)).fill('')].slice(0, 6)
 const getBlueObjectivePercent = (blue: number, red: number) => {
   const total = blue + red
@@ -292,7 +354,12 @@ function App() {
   const [path, setPath] = useState(getPath)
   const [riotId, setRiotId] = useState('Faker#KR1')
   const [server, setServer] = useState<(typeof servers)[number]>('KR')
-  const [selectedMatchId, setSelectedMatchId] = useState(recentMatches[0].id)
+  const [selectedMatchId, setSelectedMatchId] = useState('')
+  const [lastUpdatedLabel, setLastUpdatedLabel] = useState('31분 전')
+  const [showAllChampionStats, setShowAllChampionStats] = useState(false)
+  const championStats = mergeChampionStats(getChampionStats(recentMatches), extraChampionStats)
+  const visibleChampionStats = showAllChampionStats ? championStats : championStats.slice(0, championStatsPreviewCount)
+  const hiddenChampionStatsCount = Math.max(0, championStats.length - championStatsPreviewCount)
 
   useEffect(() => {
     const onPopState = () => {
@@ -386,7 +453,12 @@ function App() {
                 </div>
               </div>
               <div className="profile-meta">
-                <span>최근 업데이트 31분 전</span>
+                <div className="profile-actions">
+                  <button className="refresh-button" type="button" onClick={() => setLastUpdatedLabel('방금 전')}>
+                    전적 갱신
+                  </button>
+                </div>
+                <span>최근 업데이트: {lastUpdatedLabel}</span>
               </div>
             </div>
 
@@ -404,6 +476,64 @@ function App() {
                 <strong>3.92 : 1 • MID</strong>
               </article>
             </div>
+          </section>
+
+          <section className="panel champion-stats-panel">
+            <div className="panel-head">
+              <div>
+                <p className="section-title">챔피언 통계</p>
+                <h2>Champion Stats</h2>
+              </div>
+              <span className="season-filter">2026 Season</span>
+            </div>
+
+            <div className="champion-stats-table" role="table" aria-label="챔피언 통계">
+              <div className="champion-stats-row stats-header" role="row">
+                <span>챔피언</span>
+                <span>승률</span>
+                <span>게임</span>
+                <span>승 / 패</span>
+                <span>평점</span>
+                <span>킬</span>
+                <span>데스</span>
+                <span>어시스트</span>
+                <span>CS</span>
+              </div>
+              {visibleChampionStats.map((stat) => (
+                <div className="champion-stats-row" role="row" key={stat.champion}>
+                  <div className="champion-cell">
+                    <div className="champion-avatar compact" aria-hidden="true">
+                      {stat.champion.slice(0, 1)}
+                    </div>
+                    <strong>{stat.champion}</strong>
+                  </div>
+                  <strong className={stat.wins >= stat.losses ? 'positive-stat' : 'negative-stat'}>
+                    {getChampionWinRate(stat)}
+                  </strong>
+                  <span>{stat.games}</span>
+                  <span>
+                    {stat.wins}승 {stat.losses}패
+                  </span>
+                  <span title={`KDA ${getChampionKda(stat)}`}>{getChampionKdaRatio(stat)}</span>
+                  <span>{stat.kills}</span>
+                  <span>{stat.deaths}</span>
+                  <span>{stat.assists}</span>
+                  <span>
+                    {getChampionAverageCs(stat)}
+                    <small>{getChampionAverageCsPerMinute(stat)} CS/m</small>
+                  </span>
+                </div>
+              ))}
+            </div>
+            {hiddenChampionStatsCount > 0 && (
+              <button
+                className="champion-stats-toggle"
+                type="button"
+                onClick={() => setShowAllChampionStats((current) => !current)}
+              >
+                {showAllChampionStats ? '상위 5개만 보기' : `나머지 ${hiddenChampionStatsCount}개 챔피언 보기`}
+              </button>
+            )}
           </section>
 
           <section className="panel matches-panel">
