@@ -59,7 +59,13 @@ type ChampionStat = {
   csPerMinute: number
 }
 
-const recentMatches: Match[] = [
+type RecentPositionStat = {
+  position: string
+  games: number
+  wins: number
+}
+
+const recentMatchSeeds: Match[] = [
   {
     id: 'match-001',
     champion: '아리',
@@ -260,6 +266,28 @@ const extraChampionStats: ChampionStat[] = [
   { champion: '잭스', games: 5, wins: 3, losses: 2, kills: 34, deaths: 25, assists: 31, cs: 1017, csPerMinute: 39.9 },
   { champion: '카밀', games: 4, wins: 1, losses: 3, kills: 19, deaths: 24, assists: 21, cs: 782, csPerMinute: 30.5 },
 ]
+const recentMatchPlayedAtLabels = [
+  '12분 전',
+  '38분 전',
+  '1시간 전',
+  '2시간 전',
+  '3시간 전',
+  '4시간 전',
+  '5시간 전',
+  '6시간 전',
+  '7시간 전',
+  '8시간 전',
+  '9시간 전',
+  '10시간 전',
+  '11시간 전',
+  '12시간 전',
+  '13시간 전',
+  '14시간 전',
+  '15시간 전',
+  '16시간 전',
+  '17시간 전',
+  '18시간 전',
+] as const
 const graphObjectiveRows: { key: keyof ObjectiveStats; label: string; format?: (value: number) => string }[] = [
   { key: 'totalKills', label: 'Total Kill' },
   { key: 'gold', label: 'Gold', format: (value) => `${(value / 1000).toFixed(1)}k` },
@@ -323,6 +351,17 @@ const getChampionAverageCsPerMinute = (stat: ChampionStat) =>
   (stat.csPerMinute / Math.max(stat.games, 1)).toFixed(1)
 const mergeChampionStats = (stats: ChampionStat[], extraStats: ChampionStat[]) =>
   [...stats, ...extraStats].sort((left, right) => right.games - left.games || right.wins - left.wins)
+const buildRecentMatches = (seeds: Match[], count: number) =>
+  Array.from({ length: count }, (_, index) => {
+    const seed = seeds[index % seeds.length]
+
+    return {
+      ...seed,
+      id: `match-${String(index + 1).padStart(3, '0')}`,
+      playedAt: recentMatchPlayedAtLabels[index] ?? `${index + 1}시간 전`,
+    }
+  })
+const recentMatches = buildRecentMatches(recentMatchSeeds, 20)
 const championStatsPreviewCount = 5
 const getItemSlots = (items: string[]) => [...items, ...Array(Math.max(0, 6 - items.length)).fill('')].slice(0, 6)
 const getBlueObjectivePercent = (blue: number, red: number) => {
@@ -347,6 +386,30 @@ const getParticipantLoadout = (participant: Participant, index: number) => {
     },
   }
 }
+const getRecentPositionStats = (matches: Match[]) =>
+  Object.values(
+    matches.reduce<Record<string, RecentPositionStat>>((stats, match) => {
+      stats[match.position] ??= {
+        position: match.position,
+        games: 0,
+        wins: 0,
+      }
+
+      const stat = stats[match.position]
+      stat.games += 1
+      stat.wins += match.result === '승리' ? 1 : 0
+
+      return stats
+    }, {}),
+  ).sort((left, right) => right.games - left.games || right.wins - left.wins)
+const getRecentWinRate = (wins: number, games: number) => Math.round((wins / Math.max(games, 1)) * 100)
+const getRecentCircleStyle = (wins: number, losses: number) => {
+  const winRate = getRecentWinRate(wins, wins + losses)
+
+  return {
+    background: `conic-gradient(#3b82f6 0 ${winRate}%, rgba(239, 68, 68, 0.82) ${winRate}% 100%)`,
+  }
+}
 
 const getPath = () => window.location.pathname
 
@@ -360,6 +423,11 @@ function App() {
   const championStats = mergeChampionStats(getChampionStats(recentMatches), extraChampionStats)
   const visibleChampionStats = showAllChampionStats ? championStats : championStats.slice(0, championStatsPreviewCount)
   const hiddenChampionStatsCount = Math.max(0, championStats.length - championStatsPreviewCount)
+  const recentWins = recentMatches.filter((match) => match.result === '승리').length
+  const recentLosses = recentMatches.length - recentWins
+  const recentWinRate = getRecentWinRate(recentWins, recentMatches.length)
+  const recentChampionStats = getChampionStats(recentMatches).slice(0, 3)
+  const recentPositionStats = getRecentPositionStats(recentMatches).slice(0, 3)
 
   useEffect(() => {
     const onPopState = () => {
@@ -542,6 +610,79 @@ function App() {
                 <p className="section-title">최근 전적</p>
                 <h2>Recent Matches</h2>
               </div>
+            </div>
+
+            <div className="recent-overview">
+              <article className="recent-overview-card recent-overview-result">
+                <div className="recent-overview-title">
+                  <strong>최근 {recentMatches.length}판</strong>
+                  <span>승패 비율</span>
+                </div>
+                <div className="recent-result-body">
+                  <div className="recent-result-ring" style={getRecentCircleStyle(recentWins, recentLosses)} aria-hidden="true">
+                    <div className="recent-result-ring-inner">
+                      <strong>{recentWinRate}%</strong>
+                      <span>승률</span>
+                    </div>
+                  </div>
+                  <div className="recent-result-meta">
+                    <strong>{recentWins}승 {recentLosses}패</strong>
+                    <span>최근 {recentMatches.length}게임 기준</span>
+                  </div>
+                </div>
+              </article>
+
+              <article className="recent-overview-card">
+                <div className="recent-overview-title">
+                  <strong>챔피언 전적</strong>
+                  <span>최근 20판 기준 KDA</span>
+                </div>
+                <div className="recent-champion-summary">
+                  {recentChampionStats.map((stat) => (
+                    <div key={stat.champion} className="recent-champion-row">
+                      <div className="champion-cell">
+                        <div className="champion-avatar compact" aria-hidden="true">
+                          {stat.champion.slice(0, 1)}
+                        </div>
+                        <div>
+                          <strong>{stat.champion}</strong>
+                          <span>
+                            {stat.games}게임 · {stat.wins}승 {stat.losses}패
+                          </span>
+                        </div>
+                      </div>
+                      <div className="recent-champion-kda">
+                        <strong>{getChampionKdaRatio(stat)}</strong>
+                        <span>{getChampionKda(stat)}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </article>
+
+              <article className="recent-overview-card">
+                <div className="recent-overview-title">
+                  <strong>선호 포지션</strong>
+                  <span>최근 전적 분포</span>
+                </div>
+                <div className="recent-position-list">
+                  {recentPositionStats.map((stat) => (
+                    <div key={stat.position} className="recent-position-item">
+                      <div className="recent-position-head">
+                        <strong>{stat.position}</strong>
+                        <span>{stat.games}게임</span>
+                      </div>
+                      <div className="recent-position-track" aria-hidden="true">
+                        <span style={{ width: `${Math.round((stat.games / recentMatches.length) * 100)}%` }} />
+                      </div>
+                      <div className="recent-position-foot">
+                        <span>비중 {Math.round((stat.games / recentMatches.length) * 100)}%</span>
+                        <span>승률 {getRecentWinRate(stat.wins, stat.games)}%</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </article>
             </div>
 
             <div className="match-list">
