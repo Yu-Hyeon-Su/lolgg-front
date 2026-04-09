@@ -254,7 +254,7 @@ const recentMatchSeeds: Match[] = [
 ]
 
 const servers = ['KR', 'NA', 'EUW', 'EUNE', 'JP', 'OCE'] as const
-const extraChampionStats: ChampionStat[] = [
+const seasonChampionStats: ChampionStat[] = [
   { champion: '크산테', games: 18, wins: 11, losses: 7, kills: 72, deaths: 61, assists: 124, cs: 3492, csPerMinute: 132.4 },
   { champion: '암베사', games: 14, wins: 8, losses: 6, kills: 83, deaths: 57, assists: 91, cs: 2716, csPerMinute: 112 },
   { champion: '그웬', games: 12, wins: 7, losses: 5, kills: 69, deaths: 44, assists: 58, cs: 2498, csPerMinute: 103.7 },
@@ -349,8 +349,6 @@ const getChampionKdaRatio = (stat: ChampionStat) =>
 const getChampionAverageCs = (stat: ChampionStat) => Math.round(stat.cs / Math.max(stat.games, 1))
 const getChampionAverageCsPerMinute = (stat: ChampionStat) =>
   (stat.csPerMinute / Math.max(stat.games, 1)).toFixed(1)
-const mergeChampionStats = (stats: ChampionStat[], extraStats: ChampionStat[]) =>
-  [...stats, ...extraStats].sort((left, right) => right.games - left.games || right.wins - left.wins)
 const buildRecentMatches = (seeds: Match[], count: number) =>
   Array.from({ length: count }, (_, index) => {
     const seed = seeds[index % seeds.length]
@@ -424,7 +422,7 @@ function App() {
   const [visibleRecentMatchesCount, setVisibleRecentMatchesCount] = useState(recentMatchesPageSize)
   const recentMatches = allRecentMatches.slice(0, visibleRecentMatchesCount)
   const hasMoreRecentMatches = visibleRecentMatchesCount < allRecentMatches.length
-  const championStats = mergeChampionStats(getChampionStats(recentMatches), extraChampionStats)
+  const championStats = seasonChampionStats
   const visibleChampionStats = showAllChampionStats ? championStats : championStats.slice(0, championStatsPreviewCount)
   const hiddenChampionStatsCount = Math.max(0, championStats.length - championStatsPreviewCount)
   const recentWins = recentMatches.filter((match) => match.result === '승리').length
