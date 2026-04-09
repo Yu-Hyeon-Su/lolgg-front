@@ -599,6 +599,22 @@ p {
   gap: 10px;
 }
 
+.match-list-more-button {
+  width: 100%;
+  margin-top: 14px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  color: #dbeafe;
+  cursor: pointer;
+  font-weight: 800;
+  background: rgba(37, 99, 235, 0.18);
+  border: 1px solid rgba(96, 165, 250, 0.24);
+}
+
+.match-list-more-button:hover {
+  background: rgba(37, 99, 235, 0.26);
+}
+
 .match-entry {
   display: grid;
   gap: 0;

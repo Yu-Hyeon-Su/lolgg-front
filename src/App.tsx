@@ -361,7 +361,8 @@ const buildRecentMatches = (seeds: Match[], count: number) =>
       playedAt: recentMatchPlayedAtLabels[index] ?? `${index + 1}시간 전`,
     }
   })
-const recentMatches = buildRecentMatches(recentMatchSeeds, 20)
+const recentMatchesPageSize = 20
+const allRecentMatches = buildRecentMatches(recentMatchSeeds, 60)
 const championStatsPreviewCount = 5
 const getItemSlots = (items: string[]) => [...items, ...Array(Math.max(0, 6 - items.length)).fill('')].slice(0, 6)
 const getBlueObjectivePercent = (blue: number, red: number) => {
@@ -420,6 +421,9 @@ function App() {
   const [selectedMatchId, setSelectedMatchId] = useState('')
   const [lastUpdatedLabel, setLastUpdatedLabel] = useState('31분 전')
   const [showAllChampionStats, setShowAllChampionStats] = useState(false)
+  const [visibleRecentMatchesCount, setVisibleRecentMatchesCount] = useState(recentMatchesPageSize)
+  const recentMatches = allRecentMatches.slice(0, visibleRecentMatchesCount)
+  const hasMoreRecentMatches = visibleRecentMatchesCount < allRecentMatches.length
   const championStats = mergeChampionStats(getChampionStats(recentMatches), extraChampionStats)
   const visibleChampionStats = showAllChampionStats ? championStats : championStats.slice(0, championStatsPreviewCount)
   const hiddenChampionStatsCount = Math.max(0, championStats.length - championStatsPreviewCount)
@@ -455,6 +459,8 @@ function App() {
 
   const handleSearch = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    setVisibleRecentMatchesCount(recentMatchesPageSize)
+    setSelectedMatchId('')
     navigateToSummoner(riotId)
   }
 
@@ -868,6 +874,20 @@ function App() {
                 </div>
               ))}
             </div>
+
+            {hasMoreRecentMatches && (
+              <button
+                className="match-list-more-button"
+                type="button"
+                onClick={() =>
+                  setVisibleRecentMatchesCount((current) =>
+                    Math.min(current + recentMatchesPageSize, allRecentMatches.length),
+                  )
+                }
+              >
+                전적 더보기
+              </button>
+            )}
           </section>
         </main>
       </div>
