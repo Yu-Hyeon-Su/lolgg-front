@@ -253,7 +253,6 @@ const recentMatchSeeds: Match[] = [
   },
 ]
 
-const servers = ['KR', 'NA', 'EUW', 'EUNE', 'JP', 'OCE'] as const
 const seasonChampionStats: ChampionStat[] = [
   { champion: '크산테', games: 18, wins: 11, losses: 7, kills: 72, deaths: 61, assists: 124, cs: 3492, csPerMinute: 132.4 },
   { champion: '암베사', games: 14, wins: 8, losses: 6, kills: 83, deaths: 57, assists: 91, cs: 2716, csPerMinute: 112 },
@@ -415,7 +414,6 @@ const getPath = () => window.location.pathname
 function App() {
   const [path, setPath] = useState(getPath)
   const [riotId, setRiotId] = useState('Faker#KR1')
-  const [server, setServer] = useState<(typeof servers)[number]>('KR')
   const [selectedMatchId, setSelectedMatchId] = useState('')
   const [lastUpdatedLabel, setLastUpdatedLabel] = useState('31분 전')
   const [showAllChampionStats, setShowAllChampionStats] = useState(false)
@@ -466,6 +464,7 @@ function App() {
   const currentRiotId = isSummonerPage
     ? decodeRiotId(path.replace('/summoner/', '')) || 'Unknown#TAG'
     : ''
+  const currentPlatform = 'KR'
 
   if (isSummonerPage) {
     return (
@@ -481,18 +480,6 @@ function App() {
           <section className="panel inline-search-panel">
             <form className="inline-search-form" onSubmit={handleSearch}>
               <div className="inline-search-controls">
-                <select
-                  className="server-select"
-                  value={server}
-                  onChange={(event) => setServer(event.target.value as (typeof servers)[number])}
-                  aria-label="Server"
-                >
-                  {servers.map((item) => (
-                    <option key={item} value={item}>
-                      {item}
-                    </option>
-                  ))}
-                </select>
                 <input
                   id="summoner-search"
                   className="text-input"
@@ -512,16 +499,22 @@ function App() {
           <section className="panel profile-panel">
             <div className="profile-head">
               <div className="profile-identity">
-                <div className="summoner-icon" aria-hidden="true">
-                  531
-                </div>
-                <div>
+                <div className="profile-avatar-block">
                   <p className="section-title">소환사</p>
+                  <div className="summoner-icon" aria-hidden="true">
+                    531
+                  </div>
+                </div>
+                <div className="profile-summary">
+                  <div className="profile-platform-row">
+                    <span className="platform-card" aria-label={`현재 서버 ${currentPlatform}`}>
+                      <strong>{currentPlatform}</strong>
+                    </span>
+                  </div>
                   <div className="summoner-row">
                     <h1 className="summoner-name">{currentRiotId}</h1>
                     <span className="level-badge">Lv. 531</span>
                   </div>
-                  <p className="muted">서버 {server}</p>
                 </div>
               </div>
               <div className="profile-meta">
@@ -909,18 +902,6 @@ function App() {
               Riot ID
             </label>
             <div className="search-controls">
-              <select
-                className="server-select"
-                value={server}
-                onChange={(event) => setServer(event.target.value as (typeof servers)[number])}
-                aria-label="Server"
-              >
-                {servers.map((item) => (
-                  <option key={item} value={item}>
-                    {item}
-                  </option>
-                ))}
-              </select>
               <input
                 id="riot-id"
                 className="text-input"
