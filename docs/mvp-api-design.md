@@ -2,6 +2,17 @@
 
 작성일: 2026-04-09
 
+수정일: 2026-04-15
+
+수정사항:
+
+- Redis 응답 캐시 1차 적용 대상 3개 API 확정
+- refresh API를 비동기 job 접수 방식으로 변경
+- `GET /refresh-jobs/{jobId}` 상태 조회 API 추가
+- 검색 API의 랭크 조회 정책을 DB 저장값 반환 기준으로 정리
+- 최근 업데이트 시각 기준을 MVP 통합 문서와 맞춤
+- 조회 성능 개선용 보조 인덱스 4종 반영
+
 이 문서는 `/Users/yu/dev/projects/lolgg/docs/riot-api-notes.md`의 Riot API 조사 내용과 현재 프론트 구현 기준(`/Users/yu/dev/projects/lolgg-front/src/App.tsx`)으로 MVP 백엔드 API를 설계한 문서다.
 
 ## 1. 설계 목표
@@ -65,6 +76,13 @@ Riot API만으로 OP.GG식 전역 챔피언 통계는 불가능하다.
 - 챔피언 통계: 이번 시즌 전체 개인 전적 기준 집계
 
 즉, 현재 프론트의 Champion Stats는 "최근 N게임"이 아니라 "이번 시즌 전체 통계"로 보는 것이 맞다.
+
+추가 정책:
+
+- 최근 전적 API는 Riot API 직조회 결과가 아니라 DB에 저장된 match 데이터만 사용한다.
+- 검색 성공의 의미는 소환사 식별 및 프로필 조회 성공이다.
+- 검색 시점에 최근 전적 DB 데이터가 없을 수 있으며, 이 경우 프론트는 빈 목록과 empty state 문구를 노출한다.
+- 전적 갱신 시에는 현재 시즌에 속하는 매치 중 DB에 없는 매치를 모두 저장한 뒤 챔피언 통계를 갱신한다.
 
 ### 2.4 유저 식별 기준은 `puuid`로 통일
 
@@ -149,13 +167,14 @@ MVP에서는 유저 식별 기준을 `puuid`로 통일한다.
 
 ## 4. MVP 엔드포인트
 
-MVP 기준 권장 엔드포인트는 5개다.
+MVP 기준 권장 엔드포인트는 6개다.
 
 1. `GET /api/v1/summoners/{riotId}`
 2. `GET /api/v1/summoners/{riotId}/matches`
 3. `GET /api/v1/summoners/{riotId}/champion-stats`
-4. `GET /api/v1/matches/{matchId}`
+4. `GET /api/v1/summoners/{riotId}/matches/{matchId}`
 5. `POST /api/v1/summoners/{riotId}/refresh`
+6. `GET /api/v1/summoners/{riotId}/refresh-jobs/{jobId}`
 
 여기서 `riotId`는 URL-encoded된 `gameName#tagLine` 문자열이다.
 
@@ -174,6 +193,7 @@ MVP 기준 권장 엔드포인트는 5개다.
 - 소환사 페이지 첫 진입 시 필요한 상단 데이터를 한 번에 조회
 - 프로필, 시즌 기준 상단 요약만 포함
 - 최근 전적과 챔피언 통계는 별도 API로 조회
+- 최근 전적 DB 데이터가 없더라도 검색 자체는 성공으로 처리한다
 
 서버 처리 흐름:
 
@@ -181,8 +201,8 @@ MVP 기준 권장 엔드포인트는 5개다.
 2. `account-v1` 조회
 3. `account-v1 region` 조회
 4. `summoner-v4` 조회
-5. `league-v4`로 현재 랭크 조회
-6. 시즌 요약 데이터 조회
+5. `summoners` upsert
+6. DB 저장 랭크와 시즌 요약 데이터 조회
 7. 프론트 응답 형태로 가공
 
 구현 메모:
@@ -190,8 +210,12 @@ MVP 기준 권장 엔드포인트는 5개다.
 - 내부 유저 식별 기준은 `puuid`
 - `summoner-v4`는 프로필 아이콘/레벨 조회와 `league-v4` 호출용 `summonerId` 확보 용도로 사용
 - `accountId`는 사용하거나 저장하지 않는다
-- 현재 랭크는 `league-v4` 결과 중 노출 정책에 맞는 대표 랭크 1개만 응답한다
-- `summoner.lastUpdatedAt`은 `last_profile_synced_at`, `last_match_synced_at`, `last_rank_synced_at` 중 가장 최신 시각을 기준으로 계산한다
+- 현재 랭크는 검색 시 Riot에서 다시 조회하지 않고 DB 저장값을 사용한다
+- 랭크 DB 데이터가 없으면 `summary.rank`는 `null`을 반환한다
+- `summoner.lastUpdatedAt`은 MVP 통합 기준에서 `last_synced_at`을 사용한다
+- 검색 API는 프로필/요약 조회를 담당하고, 전적 저장을 위한 시즌 전체 동기화는 자동 수행하지 않는다
+- 따라서 검색 직후 최근 전적이 비어 있을 수 있으며, 이는 정상 상태다
+- 이 API는 Redis 응답 캐시 1차 적용 대상이다.
 
 응답 예시:
 
@@ -248,6 +272,7 @@ MVP 기준 권장 엔드포인트는 5개다.
 - 최초 진입 시 20개 조회
 - `더보기` 클릭 시 20개씩 추가 조회
 - 최대 조회 범위는 최근 2개월
+- 데이터 소스는 DB에 저장된 매치만 사용
 
 응답 예시:
 
@@ -293,11 +318,11 @@ MVP 기준 권장 엔드포인트는 5개다.
 
 구현 메모:
 
-- Riot `match-v5 ids`의 `start`, `count`를 그대로 매핑하면 된다.
-- `cursor`는 내부적으로 `start`와 동일하게 쓸 수 있다.
+- Riot `match-v5 ids`의 `start`, `count`를 직접 매핑하지 않고, DB 조회용 offset cursor로 사용한다.
+- `cursor`는 내부적으로 DB 조회 offset과 동일하게 쓸 수 있다.
 - 2개월 이전 매치는 `playedAt` 기준으로 제외한다.
-- `hasNext`는 다음 20개가 존재하는지뿐 아니라, 그 다음 결과가 2개월 범위 안에 있는지도 같이 반영해야 한다.
-- 이 API도 최초 조회에서 확보한 `puuid`와 실제 활성 플랫폼 기준으로 match host를 결정해야 한다.
+- `hasNext`는 DB에 저장된 2개월 범위 결과 기준으로 계산한다.
+- 검색 직후 DB에 저장된 매치가 없다면 빈 배열과 `hasNext=false`를 반환한다.
 
 ### 5.3 시즌 챔피언 통계 조회
 
@@ -342,21 +367,23 @@ MVP 기준 권장 엔드포인트는 5개다.
 - Riot API는 시즌 전체 챔피언 통계를 직접 주지 않으므로 자체 저장/집계가 필요하다.
 - 집계 기준은 이번 시즌 시작일 이후 저장된 match 데이터다.
 - `champion-mastery-v4`는 이 기능의 데이터 소스가 아니다.
+- 이 API는 Redis 응답 캐시 1차 적용 대상이다.
 
 ### 5.4 매치 상세 조회
 
-`GET /api/v1/matches/{matchId}`
+`GET /api/v1/summoners/{riotId}/matches/{matchId}`
 
 용도:
 
 - 매치 카드 펼침 시 상세 1건 조회
 - 초기 목록 응답을 가볍게 유지
+- 사용자 시점 참가자와 팀 정보를 함께 응답
 
 서버 처리 흐름:
 
-1. `match-v5 detail` 조회
-2. 필요 시에만 `timeline` 추가 조회
-3. 유저 시점 참가자 찾기
+1. `riotId`로 사용자 식별
+2. DB에 저장된 match 상세 조회
+3. 해당 소환사의 participant를 기준으로 유저 시점 참가자 찾기
 4. 팀별 오브젝트/참가자 정보 가공
 
 응답 예시:
@@ -430,9 +457,11 @@ MVP 기준 권장 엔드포인트는 5개다.
 
 구현 메모:
 
+- 사용자 시점 필드(`userParticipantId`, `userTeam`)가 있으므로 소환사 컨텍스트를 경로에 포함한다.
 - `wards`, `spells`, `perks`는 `match-v5 detail`만으로도 대부분 채울 수 있다.
 - timeline은 MVP에서 필수는 아니다.
-- gold 합산이나 오브젝트 일부는 `match-v5 detail.info.teams`, `participants`에서 계산 가능하다.
+- gold 합산이나 오브젝트 일부는 저장된 `match_team_stats`, `match_participants`, `matches.raw_payload`에서 계산 또는 복원할 수 있다.
+- 이 API는 Redis 응답 캐시 1차 적용 대상이다.
 
 ### 5.5 전적 갱신
 
@@ -440,29 +469,104 @@ MVP 기준 권장 엔드포인트는 5개다.
 
 용도:
 
-- 사용자가 "전적 갱신" 버튼 클릭 시 최신 경기 동기화
+- 사용자가 "전적 갱신" 버튼 클릭 시 비동기 refresh 작업 접수
 
 응답 예시:
 
 ```json
 {
-  "refreshed": true,
-  "updatedAt": "2026-04-09T09:14:22.000Z"
+  "jobId": "refresh_01jrxyzabc",
+  "status": "QUEUED",
+  "requestedAt": "2026-04-15T09:14:22.000Z"
 }
 ```
 
 구현 메모:
 
-- 이 API는 최근 매치뿐 아니라 현재 랭크도 함께 갱신한다.
-- 챔피언 통계는 시즌 전체 기준으로 항상 정확해야 하므로, 시즌 범위 내 누락된 match 데이터는 모두 동기화해야 한다.
-- DB가 있으면 시즌 범위의 누락 match 저장, 시즌 집계 갱신, 현재 랭크 upsert 후 응답한다.
-- 별도 refresh 로그 테이블은 두지 않고, `last_profile_synced_at`, `last_match_synced_at`, `last_rank_synced_at`을 각각 갱신한다.
-- 최근 전적 목록은 최근 2개월 범위만 노출하지만, 챔피언 통계 집계 기준은 시즌 전체 저장 데이터다.
+- 이 API는 메모리 기반 refresh job을 등록하고 즉시 응답한다.
+- 실제 동기화는 background worker가 수행한다.
+- refresh 실행 시 최근 매치뿐 아니라 현재 랭크도 함께 갱신한다.
+- 챔피언 통계는 시즌 전체 기준으로 항상 정확해야 하므로, 현재 시즌에 속하는 매치 중 DB에 없는 데이터는 모두 저장해야 한다.
+- 최근 전적 목록은 최근 2개월 범위만 노출하지만, refresh의 매치 동기화 범위는 현재 시즌 전체다.
+- DB가 있으면 현재 시즌 범위의 누락 match 저장, 시즌 집계 갱신, 현재 랭크 upsert를 작업 내부에서 수행한다.
+- 별도 refresh 로그 테이블은 두지 않는다.
 - 따라서 이 API는 "최근 20개만 갱신"이 아니라 "시즌 범위 정합성을 유지하는 동기화"로 보는 것이 맞다.
-- 프론트는 refresh 성공 후 `GET /api/v1/summoners/{riotId}`, `GET /api/v1/summoners/{riotId}/matches`, `GET /api/v1/summoners/{riotId}/champion-stats`를 다시 호출해 화면을 갱신한다.
+- 프론트는 refresh 상태가 `SUCCEEDED`가 된 뒤 `GET /api/v1/summoners/{riotId}`, `GET /api/v1/summoners/{riotId}/matches`, `GET /api/v1/summoners/{riotId}/champion-stats`를 다시 호출해 화면을 갱신한다.
 - 이 API도 최초 조회에서 확보한 `puuid`와 실제 활성 플랫폼 기준으로 동기화 대상을 결정한다.
+- 시즌 범위는 설정값으로 관리하는 `season`과 `seasonStartAt` 기준으로 판정한다.
 
-## 6. 권장 응답 모델
+### 5.6 refresh 상태 조회
+
+`GET /api/v1/summoners/{riotId}/refresh-jobs/{jobId}`
+
+용도:
+
+- refresh 진행 상태 polling
+
+응답 예시:
+
+```json
+{
+  "jobId": "refresh_01jrxyzabc",
+  "status": "RUNNING",
+  "requestedAt": "2026-04-15T09:14:22.000Z",
+  "startedAt": "2026-04-15T09:14:23.000Z",
+  "finishedAt": null,
+  "errorMessage": null
+}
+```
+
+구현 메모:
+
+- MVP 상태값은 `QUEUED`, `RUNNING`, `SUCCEEDED`, `FAILED`다.
+- 메모리 상태 저장소를 읽는 polling 전용 API다.
+
+## 6. Redis 응답 캐시
+
+1차 적용 대상:
+
+- `GET /api/v1/summoners/{riotId}`
+- `GET /api/v1/summoners/{riotId}/champion-stats`
+- `GET /api/v1/summoners/{riotId}/matches/{matchId}`
+
+적용 방식:
+
+- 요청 시 Redis에서 최종 응답 DTO를 먼저 조회한다.
+- 캐시 miss면 원본 데이터를 조회해 응답을 만들고 Redis에 저장한다.
+- `GET /summoners/{riotId}`의 원본 조회는 Riot API + DB다.
+- `GET /champion-stats`, `GET /matches/{matchId}`의 원본 조회는 DB 저장 데이터다.
+
+캐시 제외:
+
+- `GET /api/v1/summoners/{riotId}/matches`
+- `GET /api/v1/summoners/{riotId}/refresh-jobs/{jobId}`
+
+제외 이유:
+
+- 최근 전적 목록은 페이지네이션과 refresh 영향으로 키 수와 무효화 범위가 커진다.
+- refresh job 상태는 polling 중 상태가 자주 바뀌므로 stale 응답 위험이 크다.
+
+무효화:
+
+- refresh 상태가 `SUCCEEDED`가 되면 해당 소환사의 `summoner`, `champion-stats`, `match-detail` 캐시를 삭제한다.
+
+## 7. 조회 성능용 인덱스
+
+MVP 문서 기준으로 아래 4개 보조 인덱스를 적용한다.
+
+- `match_participants (puuid, match_id)`
+- `matches (game_creation_at desc, id)`
+- `matches (season, game_creation_at desc)`
+- `champion_season_stats (summoner_id, season, queue_scope, games desc, champion_id)`
+
+적용 목적:
+
+- 소환사 기준 최근 전적 조회 시작점을 `puuid` 인덱스로 고정
+- 최근 전적 최신순 정렬 최적화
+- refresh의 시즌 범위 조회 최적화
+- 시즌 챔피언 통계 목록 조회 최적화
+
+## 8. 권장 응답 모델
 
 프론트에서 재사용하기 쉬운 공통 모델은 아래처럼 잡는 것이 좋다.
 
@@ -562,9 +666,9 @@ type MatchDetailParticipantDto = {
 }
 ```
 
-## 7. Riot API 매핑
+## 9. Riot API 매핑
 
-### 7.1 검색/프로필
+### 9.1 검색/프로필
 
 - `account-v1/by-riot-id` -> `puuid`, `gameName`, `tagLine`
 - `account-v1/region/by-game/lol/by-puuid` -> `platform`
@@ -575,19 +679,19 @@ type MatchDetailParticipantDto = {
 - `accountId`는 MVP에서 저장/사용하지 않는다
 - 현재 MVP에서는 랭크 조회를 위해 `summonerId`를 `summoner_riot_id`로 저장한다
 
-### 7.2 최근 전적
+### 9.2 최근 전적
 
 - `match-v5/matches/by-puuid/{puuid}/ids` -> match id 목록
 - `match-v5/matches/{matchId}` -> 카드/상세 대부분
 
-### 7.3 챔피언 통계
+### 9.3 챔피언 통계
 
 - MVP는 `이번 시즌 전체 match 데이터`를 서버에 저장한 뒤 집계
 - `champion-mastery-v4`는 별도 탭이 있을 때 추가
 
 즉, 현재 프론트의 Champion Stats는 숙련도 API가 아니라 시즌 기준 match 기반 개인 통계로 설계하는 게 맞다.
 
-## 8. 프론트 타입과의 차이점
+## 10. 프론트 타입과의 차이점
 
 현재 `/Users/yu/dev/projects/lolgg-front/src/App.tsx`에는 화면 전용 mock 타입이 있다.
 

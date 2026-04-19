@@ -222,14 +222,10 @@ p {
 }
 
 .summoner-icon {
-  display: grid;
-  place-items: center;
   width: 68px;
   height: 68px;
   border-radius: 18px;
-  color: #eff6ff;
-  font-size: 1rem;
-  font-weight: 800;
+  object-fit: cover;
   background: linear-gradient(135deg, #1e3a8a, #2563eb);
 }
 
@@ -687,14 +683,12 @@ p {
 }
 
 .champion-avatar {
-  display: grid;
+  display: block;
   flex: 0 0 auto;
-  place-items: center;
   width: 46px;
   height: 46px;
   border-radius: 14px;
-  color: #eff6ff;
-  font-weight: 900;
+  object-fit: cover;
   background: linear-gradient(135deg, #334155, #1d4ed8);
 }
 
@@ -713,15 +707,13 @@ p {
   gap: 4px;
 }
 
-.match-items span {
-  display: grid;
-  place-items: center;
+.match-items span,
+.item-icon {
+  display: block;
   width: 28px;
   height: 28px;
   border-radius: 8px;
-  color: #bfdbfe;
-  font-size: 0.76rem;
-  font-weight: 800;
+  object-fit: cover;
   background: #0f172a;
 }
 
@@ -1008,13 +1000,11 @@ p {
 }
 
 .participant-icon {
-  display: grid;
-  place-items: center;
+  display: block;
   width: 32px;
   height: 32px;
   border-radius: 10px;
-  color: #eff6ff;
-  font-weight: 900;
+  object-fit: cover;
   background: linear-gradient(135deg, #334155, #2563eb);
 }
 
@@ -1078,14 +1068,11 @@ p {
 
 .participant-items span,
 .participant-trinket {
-  display: grid;
-  place-items: center;
+  display: block;
   width: 26px;
   height: 26px;
   border-radius: 7px;
-  color: #bfdbfe;
-  font-size: 0.7rem;
-  font-weight: 800;
+  object-fit: cover;
   background: #0f172a;
 }
 
@@ -1095,8 +1082,30 @@ p {
 
 .participant-items span.empty {
   border: 1px dashed rgba(148, 163, 184, 0.28);
-  color: rgba(148, 163, 184, 0.38);
   background: rgba(15, 23, 42, 0.74);
+}
+
+.icon-fallback {
+  display: grid;
+  place-items: center;
+  color: #dbeafe;
+  font-size: 0.7rem;
+  font-weight: 800;
+}
+
+.summoner-icon.icon-fallback {
+  font-size: 0.9rem;
+}
+
+.champion-avatar.icon-fallback,
+.participant-icon.icon-fallback {
+  font-size: 0.85rem;
+  font-weight: 900;
+}
+
+.item-icon.icon-fallback,
+.participant-trinket.icon-fallback {
+  font-size: 0.72rem;
 }
 
 .participant-wards {
